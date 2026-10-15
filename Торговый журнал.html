@@ -1,0 +1,695 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Торговый журнал</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: ledger-style dashboard. Stats and chart on the left, trade entry form on the right, trade table full width below. */
+:root{
+  --bg:#EDF0F3;
+  --surface:#FFFFFF;
+  --surface-2:#F3F5F8;
+  --ink:#111C2B;
+  --muted:#5B6879;
+  --line:#D6DCE3;
+  --accent:#1F4FD8;
+  --accent-ink:#FFFFFF;
+  --win:#0B8A57;
+  --loss:#CF3636;
+  --be:#8590A0;
+  --hero-bg:#2338F0;
+  --h-win:#6BF2B8;
+  --h-loss:#FFA3AA;
+  --h-be:rgba(255,255,255,.55);
+  --paper:rgba(17,28,43,.05);
+  --font-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --font-body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C121B;--surface:#121A26;--surface-2:#18222F;--ink:#E6ECF3;--muted:#8E9BAE;--line:#243043;
+    --accent:#6F9BFF;--accent-ink:#0C121B;--win:#35C48A;--loss:#FF6B6B;--be:#7C8899;--paper:rgba(230,236,243,.045);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C121B;--surface:#121A26;--surface-2:#18222F;--ink:#E6ECF3;--muted:#8E9BAE;--line:#243043;
+  --accent:#6F9BFF;--accent-ink:#0C121B;--win:#35C48A;--loss:#FF6B6B;--be:#7C8899;--paper:rgba(230,236,243,.045);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background-color:var(--bg);
+  background-image:linear-gradient(var(--paper) 1px,transparent 1px),linear-gradient(90deg,var(--paper) 1px,transparent 1px);
+  background-size:28px 28px;
+  color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.45;
+  padding-block:20px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2{margin:0;font-family:var(--font-display);text-wrap:balance}
+h1{font-size:clamp(32px,5vw,44px);line-height:1;font-weight:700;letter-spacing:-.025em}
+.eyebrow{font:500 11px var(--font-mono);letter-spacing:.14em;color:var(--muted);margin-bottom:10px}
+h2{font-size:16px;font-weight:600}
+p{margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--muted)}
+.sm{font-size:12px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500}
+
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between}
+.top>div{min-width:0}
+.sub{color:var(--muted);margin-top:6px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--surface)}
+.chip.cloud{color:var(--win)}
+select,input{
+  font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:9px 10px;width:100%;min-width:0;
+}
+select{width:auto;padding:5px 8px}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input::placeholder{color:var(--muted);opacity:.7}
+
+.demo{border:1px dashed var(--line);border-radius:10px;padding:10px 14px;color:var(--muted);background:var(--surface-2)}
+.demo b{color:var(--ink);font-weight:600}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.layout{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);grid-template-areas:"stats" "chart" "form" "table"}
+.a-stats{grid-area:stats}.a-chart{grid-area:chart}.a-form{grid-area:form}.a-table{grid-area:table}
+@media (min-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"stats form" "chart form" "table table";align-items:start}
+}
+
+.stats{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr))}
+.wr{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;gap:22px;padding:20px 22px;border:0;border-radius:14px;color:#fff;
+  background:radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.2),transparent 55%),linear-gradient(160deg,var(--hero-bg),#1A28B8)}
+.wr::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px);background-size:100% 22px;
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 70%);mask-image:linear-gradient(to bottom,transparent,#000 70%)}
+.wr>*{position:relative;z-index:1}
+.wr .lbl{color:rgba(255,255,255,.75)}
+.wr-num{font-family:var(--font-display);font-weight:700;font-size:clamp(68px,11vw,104px);line-height:.9;letter-spacing:-.04em;margin-top:10px;font-variant-numeric:tabular-nums}
+.wr-sub{margin-top:10px;color:rgba(255,255,255,.72);font-size:12px}
+.wr-bot{display:flex;align-items:center;gap:20px}
+.ringbox{flex:0 0 auto;width:96px;height:96px}
+.ringbox svg{display:block;width:100%;height:auto}
+.ring-bg{fill:none;stroke:rgba(255,255,255,.16);stroke-width:12}
+.ring-seg{fill:none;stroke-width:12}
+.ring-win{stroke:var(--h-win)}.ring-loss{stroke:var(--h-loss)}.ring-be{stroke:var(--h-be)}
+.ring-n{fill:#fff;font:600 24px var(--font-display);text-anchor:middle}
+.ring-l{fill:rgba(255,255,255,.75);font:500 10px var(--font-body);text-anchor:middle;letter-spacing:.06em}
+.legend{flex:1;min-width:0;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:12px}
+.legend li{display:flex;align-items:center;gap:8px}
+.legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.legend .n{margin-left:auto;font-family:var(--font-mono)}
+.dw{background:var(--h-win)}.dl{background:var(--h-loss)}.db{background:var(--h-be)}
+
+.tape{overflow:hidden;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.tape-in{display:flex;width:max-content;animation:tape 60s linear infinite}
+.tape:hover .tape-in{animation-play-state:paused}
+.tape-it{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;font:500 12px var(--font-mono);white-space:nowrap;border-right:1px solid var(--line)}
+.tape-it .muted{font-weight:400}
+@keyframes tape{to{transform:translateX(-50%)}}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tile{padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tile small{display:block;font-size:12px;margin-top:2px}
+.tile .val{font-family:var(--font-mono);font-weight:500;font-size:20px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.pos{color:var(--win)}.neg{color:var(--loss)}.zero-c{color:var(--muted)}
+
+.chart-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.chart-head>div{min-width:0}
+.chart-head p{margin-top:2px}
+.chart{position:relative;min-height:230px}
+.chart svg{display:block;max-width:100%}
+.chart .empty{padding:60px 0;text-align:center;color:var(--muted)}
+.grid{stroke:var(--line);stroke-width:1}
+.zero{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
+.axis{fill:var(--muted);font:11px var(--font-mono)}
+.eq-line{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.eq-area{fill:url(#eqg)}
+.halo{fill:var(--accent);transform-box:fill-box;transform-origin:center;animation:pulse 2.4s ease-out infinite}
+.endpt{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+@keyframes pulse{0%{transform:scale(.6);opacity:.45}100%{transform:scale(2);opacity:0}}
+.dot{stroke:var(--surface);stroke-width:1.5}
+.dot-win{fill:var(--win)}.dot-loss{fill:var(--loss)}.dot-be{fill:var(--be)}
+.bar-pos{fill:var(--win)}.bar-neg{fill:var(--loss)}.bar-zero{fill:var(--be)}
+.guide{stroke:var(--muted);stroke-width:1;stroke-dasharray:2 3}
+.hl{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.hit{fill:transparent;touch-action:pan-y}
+.tip{position:absolute;top:0;left:0;pointer-events:none;background:var(--ink);color:var(--bg);padding:6px 9px;border-radius:6px;font:12px/1.4 var(--font-mono);white-space:nowrap;opacity:0;transition:opacity .1s}
+
+.seg{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:3px}
+.seg input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.seg label{text-align:center;padding:7px 8px;border-radius:6px;cursor:pointer;color:var(--muted);font-weight:500;white-space:nowrap;user-select:none}
+.seg input:checked+label{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:1px}
+.seg.res input[value="win"]:checked+label{color:var(--win);background:color-mix(in srgb,var(--win) 15%,var(--surface));box-shadow:0 0 0 1px color-mix(in srgb,var(--win) 45%,transparent)}
+.seg.res input[value="loss"]:checked+label{color:var(--loss);background:color-mix(in srgb,var(--loss) 15%,var(--surface));box-shadow:0 0 0 1px color-mix(in srgb,var(--loss) 45%,transparent)}
+.seg.sm{grid-auto-columns:auto}
+
+.a-form{display:flex;flex-direction:column;gap:14px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field>label,.fl{font-size:12px;color:var(--muted);font-weight:500}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.num-in{font-family:var(--font-mono)}
+.hint{font-size:12px;color:var(--muted);min-height:1.4em}
+.err{font-size:12px;color:var(--loss)}
+.btn{font:inherit;font-size:15px;font-weight:600;background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.btn:hover{filter:brightness(1.08)}
+
+.thead-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px}
+.tw{overflow-x:auto}
+table{width:100%;min-width:640px;border-collapse:collapse}
+th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--surface-2)}
+th.num,td.num{text-align:right}
+td.pair{font-weight:600;font-family:var(--font-mono)}
+td.note{max-width:220px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+td.act{text-align:right}
+tr.is-demo td{opacity:.62}
+.res{display:inline-flex;align-items:center;gap:6px;font-weight:500;padding:2px 10px 2px 8px;border-radius:999px;background:color-mix(in srgb,currentColor 12%,transparent)}
+.res::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.res-win{color:var(--win)}.res-loss{color:var(--loss)}.res-be{color:var(--be)}
+.del{font:inherit;font-size:12px;color:var(--muted);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 8px;cursor:pointer}
+.del:hover{border-color:var(--line);color:var(--ink)}
+.del.armed{color:var(--loss);border-color:var(--loss)}
+
+.toast-wrap{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;pointer-events:none;
+  padding:12px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.toast{background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:13px;opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s}
+.toast.on{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.toast,.tip{transition:none}.tape-in,.halo{animation:none}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow" id="today"></div>
+      <h1>Торговый журнал</h1>
+      <p class="sub" id="sub"></p>
+    </div>
+    <div class="tools">
+      <span class="chip" id="status">Хранится в этом браузере</span>
+      <label><span class="sr">Валюта</span>
+        <select id="cur">
+          <option value="$">$</option>
+          <option value="€">€</option>
+          <option value="₴">₴</option>
+          <option value="£">£</option>
+          <option value="USDT">USDT</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <div class="tape" id="tapeBox" aria-hidden="true" hidden><div class="tape-in" id="tape"></div></div>
+
+  <p class="demo" id="demoNote" hidden><b>Это пример данных.</b> Запишите первую сделку справа, и пример исчезнет.</p>
+
+  <main class="layout">
+    <section class="a-stats stats" aria-label="Статистика">
+      <div class="card wr">
+        <div class="wr-top">
+          <div class="lbl">Винрейт</div>
+          <div class="wr-num" id="wr">—</div>
+          <div class="wr-sub">безубыточные не считаются</div>
+        </div>
+        <div class="wr-bot">
+          <div class="ringbox"><svg id="ring" viewBox="0 0 112 112" width="96" height="96" role="img" aria-label="Соотношение прибыльных, убыточных и безубыточных сделок"></svg></div>
+          <ul class="legend" id="legend"></ul>
+        </div>
+      </div>
+      <div class="tiles">
+        <div class="card tile"><div class="lbl">Чистый профит</div><div class="val" id="tNet">—</div></div>
+        <div class="card tile"><div class="lbl">Средний RR</div><div class="val" id="tRR">—</div></div>
+        <div class="card tile"><div class="lbl">Профит-фактор</div><div class="val" id="tPF">—</div></div>
+        <div class="card tile"><div class="lbl">Макс. просадка</div><div class="val" id="tDD">—</div></div>
+        <div class="card tile"><div class="lbl">Лучшая пара</div><div class="val" id="tBest">—</div></div>
+        <div class="card tile"><div class="lbl">Серия</div><div class="val" id="tStreak">—</div></div>
+      </div>
+    </section>
+
+    <section class="card a-chart">
+      <div class="chart-head">
+        <div>
+          <h2>Дневник сделок</h2>
+          <p class="sm muted" id="chartRead"></p>
+        </div>
+        <div class="seg sm" role="radiogroup" aria-label="Вид диаграммы">
+          <input type="radio" name="cm" id="cm-eq" value="equity" checked><label for="cm-eq">Баланс</label>
+          <input type="radio" name="cm" id="cm-day" value="day"><label for="cm-day">По дням</label>
+        </div>
+      </div>
+      <div id="chart" class="chart"></div>
+    </section>
+
+    <form class="card a-form" id="f" novalidate>
+      <h2>Новая сделка</h2>
+      <div class="row2">
+        <div class="field"><label for="date">Дата</label><input id="date" type="date"></div>
+        <div class="field"><label for="pair">Пара</label>
+          <input id="pair" list="pairs" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="16" placeholder="EURUSD">
+          <datalist id="pairs"></datalist>
+        </div>
+      </div>
+      <div class="field">
+        <span class="fl" id="l-dir">Направление</span>
+        <div class="seg" role="radiogroup" aria-labelledby="l-dir">
+          <input type="radio" name="dir" id="dir-long" value="long" checked><label for="dir-long">▲ Лонг</label>
+          <input type="radio" name="dir" id="dir-short" value="short"><label for="dir-short">▼ Шорт</label>
+        </div>
+      </div>
+      <div class="field">
+        <span class="fl" id="l-res">Результат</span>
+        <div class="seg res" role="radiogroup" aria-labelledby="l-res">
+          <input type="radio" name="res" id="res-win" value="win" checked><label for="res-win">Прибыль</label>
+          <input type="radio" name="res" id="res-loss" value="loss"><label for="res-loss">Убыток</label>
+          <input type="radio" name="res" id="res-be" value="be"><label for="res-be">БУ</label>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="rr">RR (1 : …)</label><input class="num-in" id="rr" inputmode="decimal" maxlength="6" placeholder="2.5"></div>
+        <div class="field"><label for="profit">Профит</label><input class="num-in" id="profit" inputmode="decimal" maxlength="12" placeholder="80"></div>
+      </div>
+      <p class="hint" id="hint" aria-live="polite"></p>
+      <div class="field"><label for="note">Заметка</label><input id="note" maxlength="200" placeholder="Сетап, ошибка, эмоции. По желанию"></div>
+      <p class="err" id="err" role="alert" hidden></p>
+      <button class="btn" type="submit">Записать сделку <span aria-hidden="true">→</span></button>
+    </form>
+
+    <section class="card a-table">
+      <div class="thead-row"><h2>Сделки</h2><span class="sm muted" id="cnt"></span></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Дата</th><th>Пара</th><th>Напр.</th><th>Результат</th><th class="num">RR</th><th class="num">Профит</th><th>Заметка</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast-wrap"><div class="toast" id="toast" role="status" aria-live="polite"></div></div>
+
+<script>
+(function(){
+  var $ = function(s){ return document.querySelector(s); };
+  var LS_KEY = 'tj.trades.v1', LS_CUR = 'tj.cur';
+  var PAIRS = ['EURUSD','GBPUSD','USDJPY','USDCHF','AUDUSD','USDCAD','NZDUSD','EURJPY','GBPJPY','XAUUSD','XAGUSD','BTCUSDT','ETHUSDT','SOLUSDT','NAS100','US30','SPX500','GER40'];
+  var RES_LABEL = {win:'Прибыль', loss:'Убыток', be:'БУ'};
+
+  var remote = [], local = loadLocal();
+  var col = null, mode = 'local', cloudReady = false;
+  var chartMode = 'equity';
+  var view = [];
+  var cur = '$';
+  try { cur = localStorage.getItem(LS_CUR) || '$'; } catch(e){}
+
+  /* ---------- helpers ---------- */
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function ymd(d){ return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+  function parseDate(s){ var p = s.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+  function fmtDate(s){ return parseDate(s).toLocaleDateString('ru-RU', {day:'numeric', month:'short'}).replace(/\.$/, ''); }
+  function plural(n, f){ var m = n % 100, d = n % 10; if (m > 10 && m < 20) return f[2]; if (d === 1) return f[0]; if (d > 1 && d < 5) return f[1]; return f[2]; }
+  function money(v, signed){
+    var s = v < 0 ? '−' : (signed && v > 0 ? '+' : '');
+    return s + Math.abs(v).toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + cur;
+  }
+  function fmtNum(v){ return v.toLocaleString('ru-RU', {maximumFractionDigits:2}); }
+  function axisFmt(v){
+    var s = v < 0 ? '−' : '', a = Math.abs(v);
+    if (a >= 1000) return s + (a/1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return s + String(+a.toFixed(2));
+  }
+  function num(s){
+    if (s == null) return null;
+    s = String(s).trim().replace(',', '.').replace(/\s/g, '');
+    if (s === '') return null;
+    var v = Number(s);
+    return isFinite(v) ? v : NaN;
+  }
+  function signedProfit(res, raw){
+    if (raw == null || isNaN(raw)) return null;
+    return res === 'win' ? Math.abs(raw) : (res === 'loss' ? -Math.abs(raw) : raw);
+  }
+  function cls(v){ return v > 0 ? 'pos' : (v < 0 ? 'neg' : 'zero-c'); }
+  function newId(){ return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function valid(t){ return t && typeof t.date === 'string' && typeof t.pair === 'string' && typeof t.profit === 'number' && (t.res === 'win' || t.res === 'loss' || t.res === 'be'); }
+
+  /* ---------- storage ---------- */
+  function loadLocal(){
+    try { var a = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); return Array.isArray(a) ? a.filter(valid) : []; } catch(e){ return []; }
+  }
+  function saveLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(local)); } catch(e){} }
+  function allTrades(){
+    var seen = {}, out = [];
+    remote.concat(local).forEach(function(t){ if (!seen[t.id]) { seen[t.id] = 1; out.push(t); } });
+    out.sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0); });
+    return out;
+  }
+  function demoTrades(){
+    var d = [
+      [27,'EURUSD','long','win',2.0,80],[27,'GBPJPY','short','loss',2.0,-40],[25,'XAUUSD','long','win',3.0,120],
+      [24,'BTCUSDT','long','loss',2.5,-40],[23,'EURUSD','short','win',1.5,60],[22,'USDJPY','long','be',2.0,0],
+      [20,'XAUUSD','short','win',2.0,80],[19,'GBPUSD','long','loss',1.5,-40],[18,'NAS100','long','win',2.5,100],
+      [17,'EURUSD','long','win',2.0,80],[15,'BTCUSDT','short','loss',3.0,-40],[14,'XAUUSD','long','win',2.0,80],
+      [13,'GBPJPY','long','loss',2.0,-40],[12,'EURUSD','short','loss',1.5,-40],[10,'NAS100','short','win',3.0,120],
+      [9,'XAUUSD','long','win',2.0,80],[8,'USDJPY','short','be',1.5,-4],[6,'GBPUSD','short','win',2.0,80],
+      [5,'BTCUSDT','long','loss',2.0,-40],[3,'EURUSD','long','win',2.5,100],[2,'XAUUSD','short','loss',2.0,-40],
+      [1,'NAS100','long','win',2.0,80]
+    ];
+    return d.map(function(r, i){
+      var dt = new Date(); dt.setDate(dt.getDate() - r[0]);
+      return {id:'demo'+i, demo:true, date:ymd(dt), pair:r[1], dir:r[2], res:r[3], rr:r[4], profit:r[5], note:'', ts:i};
+    });
+  }
+
+  /* ---------- stats ---------- */
+  function stats(list){
+    var w = 0, l = 0, b = 0, net = 0, gp = 0, gl = 0, rrSum = 0, rrN = 0, peak = 0, dd = 0, pm = {};
+    list.forEach(function(t){
+      if (t.res === 'win') w++; else if (t.res === 'loss') l++; else b++;
+      net += t.profit;
+      pm[t.pair] = (pm[t.pair] || 0) + t.profit;
+      if (t.profit > 0) gp += t.profit; else if (t.profit < 0) gl += -t.profit;
+      if (t.rr != null && isFinite(t.rr)) { rrSum += t.rr; rrN++; }
+      if (net > peak) peak = net;
+      if (peak - net > dd) dd = peak - net;
+    });
+    var dec = w + l, bp = null, sk = null, sn = 0, i;
+    Object.keys(pm).forEach(function(q){ if (bp === null || pm[q] > pm[bp]) bp = q; });
+    for (i = list.length - 1; i >= 0; i--) { var r = list[i].res; if (r === 'be') break; if (sk === null) { sk = r; sn = 1; } else if (r === sk) sn++; else break; }
+    return {n:list.length, w:w, l:l, b:b, net:net, wr: dec ? w/dec*100 : null,
+      avgRR: rrN ? rrSum/rrN : null, pf: gl > 0 ? gp/gl : (gp > 0 ? Infinity : null), dd:dd, best:bp, bs: bp === null ? 0 : pm[bp], sk:sk, sn:sn};
+  }
+  function ringSVG(s){
+    var r = 44, C = 2*Math.PI*r, total = s.n || 1, off = 0;
+    var segs = [['win', s.w], ['loss', s.l], ['be', s.b]].filter(function(x){ return x[1] > 0; });
+    var gap = segs.length > 1 ? 2 : 0;
+    var out = '<circle class="ring-bg" cx="56" cy="56" r="' + r + '"/>';
+    segs.forEach(function(x){
+      var len = x[1]/total*C, dash = Math.max(len - gap, 0.5);
+      out += '<circle class="ring-seg ring-' + x[0] + '" cx="56" cy="56" r="' + r + '" stroke-dasharray="' + dash.toFixed(2) + ' ' + (C - dash).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 56 56)"/>';
+      off += len;
+    });
+    out += '<text class="ring-n" x="56" y="58">' + s.n + '</text><text class="ring-l" x="56" y="73">' + esc(plural(s.n, ['СДЕЛКА','СДЕЛКИ','СДЕЛОК'])) + '</text>';
+    return out;
+  }
+
+  /* ---------- rendering ---------- */
+  function render(){
+    var all = allTrades();
+    var waiting = mode === 'cloud' && !cloudReady;
+    var demo = all.length === 0 && !waiting;
+    view = demo ? demoTrades() : all;
+    $('#demoNote').hidden = !demo;
+    renderHead(view, demo);
+    renderStats(stats(view));
+    renderChart(view);
+    renderTable(view, demo);
+    renderTape(view);
+    updatePairs(all);
+  }
+  function renderTape(list){
+    var box = $('#tapeBox');
+    box.hidden = !list.length;
+    if (!list.length) return;
+    var items = list.slice(-14).reverse().map(function(t){
+      return '<span class="tape-it"><b>' + esc(t.pair) + '</b><span class="muted">' + (t.dir === 'short' ? '▼' : '▲') + '</span><span class="' + cls(t.profit) + '">' + money(t.profit, true) + '</span>' + (t.rr != null ? '<span class="muted">1:' + fmtNum(t.rr) + '</span>' : '') + '</span>';
+    });
+    var half = items.slice();
+    while (half.length < 10) half = half.concat(items);
+    var h = half.join('');
+    $('#tape').innerHTML = h + h;
+  }
+  function renderHead(list, demo){
+    var n = list.length;
+    $('#sub').textContent = n ? (n + ' ' + plural(n, ['сделка','сделки','сделок']) + ' · ' + fmtDate(list[0].date) + ' – ' + fmtDate(list[n-1].date) + (demo ? ' · пример' : '')) : 'Сделок пока нет';
+  }
+  function renderStats(s){
+    $('#ring').innerHTML = ringSVG(s);
+    $('#wr').textContent = s.wr == null ? '—' : s.wr.toFixed(1).replace('.', ',').replace(',0', '') + '%';
+    $('#legend').innerHTML =
+      '<li><i class="dw"></i>Прибыльных<span class="n">' + s.w + '</span></li>' +
+      '<li><i class="dl"></i>Убыточных<span class="n">' + s.l + '</span></li>' +
+      '<li><i class="db"></i>Безубыточных<span class="n">' + s.b + '</span></li>';
+    var net = $('#tNet'); net.textContent = s.n ? money(s.net, true) : '—'; net.className = 'val ' + (s.n ? cls(s.net) : '');
+    $('#tRR').textContent = s.avgRR == null ? '—' : '1 : ' + fmtNum(s.avgRR);
+    $('#tPF').textContent = s.pf == null ? '—' : (s.pf === Infinity ? '∞' : fmtNum(s.pf));
+    var dd = $('#tDD'); dd.textContent = s.n ? (s.dd > 0 ? money(-s.dd) : money(0)) : '—'; dd.className = 'val ' + (s.dd > 0 ? 'neg' : '');
+    var tb = $('#tBest');
+    if (s.best) tb.innerHTML = esc(s.best) + '<small class="' + cls(s.bs) + '">' + money(s.bs, true) + '</small>'; else tb.textContent = '—';
+    var ts = $('#tStreak');
+    ts.textContent = s.sk ? (s.sk === 'win' ? '▲ ' : '▼ ') + s.sn + ' подряд' : '—';
+    ts.className = 'val ' + (s.sk === 'win' ? 'pos' : s.sk === 'loss' ? 'neg' : '');
+  }
+  function niceTicks(min, max, count){
+    var span = (max - min) || 1, raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    var step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+    var start = Math.floor(min / step) * step, end = Math.ceil(max / step) * step;
+    if (end <= start) end = start + step;
+    var t = [];
+    for (var v = start; v <= end + step / 2; v += step) t.push(+v.toFixed(10));
+    return t;
+  }
+  function renderChart(list){
+    var el = $('#chart');
+    if (!list.length) { el.innerHTML = '<p class="empty">Загружаю сделки…</p>'; $('#chartRead').textContent = ''; return; }
+    var W = Math.max(Math.floor(el.clientWidth) || 600, 260), H = W < 520 ? 230 : 270;
+    var M = {l:48, r:14, t:16, b:28}, iw = W - M.l - M.r, ih = H - M.t - M.b;
+    var pts = [], body = '', grid = '', read = '', ticks, lo, hi, Y, i;
+    function drawGrid(){
+      ticks.forEach(function(v){
+        var y = Y(v).toFixed(1);
+        grid += '<line class="' + (v === 0 ? 'zero' : 'grid') + '" x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + y + '" y2="' + y + '"/>' +
+                '<text class="axis" x="' + (M.l - 8) + '" y="' + (+y + 4) + '" text-anchor="end">' + axisFmt(v) + '</text>';
+      });
+    }
+    if (chartMode === 'equity') {
+      var vals = [0], c = 0;
+      list.forEach(function(t){ c += t.profit; vals.push(c); });
+      var n = list.length;
+      ticks = niceTicks(Math.min.apply(null, vals.concat(0)), Math.max.apply(null, vals.concat(0)), 4);
+      lo = ticks[0]; hi = ticks[ticks.length - 1];
+      var X = function(k){ return M.l + (n ? k / n : 0) * iw; };
+      Y = function(v){ return M.t + (hi - v) / (hi - lo) * ih; };
+      drawGrid();
+      var d = '';
+      for (i = 0; i <= n; i++) {
+        var x = X(i), y = Y(vals[i]);
+        d += (i ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1);
+        var t = list[i - 1];
+        pts.push({x:x, y:y, html: i === 0 ? 'Старт · ' + money(0) :
+          '№' + i + ' · ' + esc(t.pair) + ' ' + (t.dir === 'short' ? '▼' : '▲') + ' · ' + money(t.profit, true) + '<br>Баланс ' + money(vals[i], true)});
+      }
+      var base = Y(0).toFixed(1);
+      body += '<path class="eq-area" d="' + d + 'L' + X(n).toFixed(1) + ',' + base + 'L' + X(0).toFixed(1) + ',' + base + 'Z"/>';
+      body += '<path class="eq-line" d="' + d + '"/>';
+      if (n <= 60) for (i = 1; i <= n; i++) body += '<circle class="dot dot-' + list[i-1].res + '" cx="' + pts[i].x.toFixed(1) + '" cy="' + pts[i].y.toFixed(1) + '" r="3.2"/>';
+      body += '<circle class="halo" cx="' + pts[n].x.toFixed(1) + '" cy="' + pts[n].y.toFixed(1) + '" r="9"/><circle class="endpt" cx="' + pts[n].x.toFixed(1) + '" cy="' + pts[n].y.toFixed(1) + '" r="4.5"/>';
+      var step = Math.max(1, Math.ceil(n / 6));
+      for (i = 0; i <= n; i += step) body += '<text class="axis" x="' + X(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + i + '</text>';
+      read = 'Баланс: <span class="' + cls(c) + '">' + money(c, true) + '</span> · по номеру сделки';
+    } else {
+      var map = {};
+      list.forEach(function(t){ var o = map[t.date] || (map[t.date] = {sum:0, n:0}); o.sum += t.profit; o.n++; });
+      var days = Object.keys(map).sort();
+      var dv = days.map(function(k){ return map[k].sum; });
+      ticks = niceTicks(Math.min.apply(null, dv.concat(0)), Math.max.apply(null, dv.concat(0)), 4);
+      lo = ticks[0]; hi = ticks[ticks.length - 1];
+      Y = function(v){ return M.t + (hi - v) / (hi - lo) * ih; };
+      drawGrid();
+      var band = iw / days.length, bw = Math.max(3, Math.min(32, band * 0.66)), every = Math.max(1, Math.ceil(46 / band)), plus = 0;
+      days.forEach(function(dk, k){
+        var v = dv[k], cx = M.l + band * (k + 0.5), y0 = Y(0), y1 = Y(v);
+        var h = Math.max(Math.abs(y1 - y0), 2), top = v === 0 ? y0 - 1 : Math.min(y0, y1);
+        if (v > 0) plus++;
+        body += '<rect class="' + (v > 0 ? 'bar-pos' : v < 0 ? 'bar-neg' : 'bar-zero') + '" x="' + (cx - bw/2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2"/>';
+        if (k % every === 0) body += '<text class="axis" x="' + cx.toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + dk.slice(8) + '.' + dk.slice(5, 7) + '</text>';
+        var cnt = map[dk].n;
+        pts.push({x:cx, y:y1, noDot:true, html: fmtDate(dk) + ' · ' + cnt + ' ' + plural(cnt, ['сделка','сделки','сделок']) + '<br>' + money(v, true)});
+      });
+      var dn = days.length;
+      read = 'В плюсе ' + plus + ' из ' + dn + ' ' + ((dn % 10 === 1 && dn % 100 !== 11) ? 'дня' : 'дней');
+    }
+    el.innerHTML = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Диаграмма сделок"><defs><linearGradient id="eqg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.32"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>' + grid + body +
+      '<line class="guide" x1="0" x2="0" y1="' + M.t + '" y2="' + (M.t + ih) + '" style="visibility:hidden"/>' +
+      '<circle class="hl" r="5" cx="0" cy="0" style="visibility:hidden"/>' +
+      '<rect class="hit" x="' + M.l + '" y="' + M.t + '" width="' + iw + '" height="' + ih + '"/></svg><div class="tip"></div>';
+    $('#chartRead').innerHTML = read;
+    bindHover(el, pts, W);
+  }
+  function bindHover(el, pts, W){
+    var svg = el.querySelector('svg'), hit = svg.querySelector('.hit'), tip = el.querySelector('.tip');
+    var guide = svg.querySelector('.guide'), hl = svg.querySelector('.hl');
+    function show(ev){
+      var r = svg.getBoundingClientRect(), x = ev.clientX - r.left, best = 0, bd = 1e9;
+      for (var i = 0; i < pts.length; i++) { var d = Math.abs(pts[i].x - x); if (d < bd) { bd = d; best = i; } }
+      var p = pts[best];
+      guide.setAttribute('x1', p.x); guide.setAttribute('x2', p.x); guide.style.visibility = 'visible';
+      if (p.noDot) hl.style.visibility = 'hidden'; else { hl.setAttribute('cx', p.x); hl.setAttribute('cy', p.y); hl.style.visibility = 'visible'; }
+      tip.innerHTML = p.html; tip.style.opacity = 1;
+      var w = tip.offsetWidth;
+      tip.style.transform = 'translate(' + Math.max(0, Math.min(W - w, p.x - w/2)) + 'px,0)';
+    }
+    function hide(){ guide.style.visibility = 'hidden'; hl.style.visibility = 'hidden'; tip.style.opacity = 0; }
+    hit.addEventListener('pointermove', show);
+    hit.addEventListener('pointerdown', show);
+    hit.addEventListener('pointerleave', hide);
+  }
+  function renderTable(list, demo){
+    var rows = list.slice().reverse().map(function(t){
+      return '<tr class="' + (t.demo ? 'is-demo' : '') + '">' +
+        '<td class="mono">' + esc(fmtDate(t.date)) + '</td>' +
+        '<td class="pair">' + esc(t.pair) + '</td>' +
+        '<td>' + (t.dir === 'short' ? '▼ Шорт' : '▲ Лонг') + '</td>' +
+        '<td><span class="res res-' + t.res + '">' + RES_LABEL[t.res] + '</span></td>' +
+        '<td class="num mono">' + (t.rr != null ? '1 : ' + fmtNum(t.rr) : '—') + '</td>' +
+        '<td class="num mono ' + cls(t.profit) + '">' + money(t.profit, true) + '</td>' +
+        '<td class="note" title="' + esc(t.note || '') + '">' + esc(t.note || '') + '</td>' +
+        '<td class="act">' + (t.demo ? '' : '<button class="del" type="button" data-id="' + esc(t.id) + '">Удалить</button>') + '</td></tr>';
+    });
+    $('#rows').innerHTML = rows.join('');
+    $('#cnt').textContent = demo ? 'пример' : '';
+  }
+  var pairKey = '';
+  function updatePairs(all){
+    var set = {}, out = [];
+    all.map(function(t){ return t.pair; }).concat(PAIRS).forEach(function(p){ if (!set[p]) { set[p] = 1; out.push(p); } });
+    var key = out.join(',');
+    if (key === pairKey) return;
+    pairKey = key;
+    $('#pairs').innerHTML = out.map(function(p){ return '<option value="' + esc(p) + '"></option>'; }).join('');
+  }
+  function setStatus(){
+    var s = $('#status');
+    if (mode === 'cloud') { s.textContent = 'Хранится в вашем аккаунте'; s.className = 'chip cloud'; }
+    else { s.textContent = 'Хранится в этом браузере'; s.className = 'chip'; }
+  }
+  var toastTimer;
+  function toast(msg){
+    var t = $('#toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.classList.remove('on'); }, 2800);
+  }
+
+  /* ---------- actions ---------- */
+  function addTrade(t){
+    if (mode === 'cloud' && col) {
+      return col.doc(t.id).set(t).then(function(){ return 'cloud'; }, function(){
+        local.push(t); saveLocal(); render(); return 'fallback';
+      });
+    }
+    local.push(t); saveLocal(); render();
+    return Promise.resolve('local');
+  }
+  function removeTrade(id){
+    var li = -1;
+    local.forEach(function(t, k){ if (t.id === id) li = k; });
+    if (li >= 0) { local.splice(li, 1); saveLocal(); render(); return; }
+    if (col) col.doc(id).delete().catch(function(){ toast('Не удалось удалить. Попробуйте ещё раз.'); });
+  }
+  function formState(){
+    var res = document.querySelector('input[name="res"]:checked').value;
+    return {res:res, raw:num($('#profit').value), rr:num($('#rr').value)};
+  }
+  function updateHint(){
+    var s = formState(), v = signedProfit(s.res, s.raw);
+    if (s.res === 'be' && s.raw == null) v = 0;
+    $('#hint').textContent = v == null ? 'Знак профита ставится по результату: прибыль +, убыток −.' : 'Запишется: ' + money(v, true);
+  }
+  function showErr(msg){ var e = $('#err'); e.textContent = msg || ''; e.hidden = !msg; }
+
+  $('#f').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var date = $('#date').value, pair = $('#pair').value.trim().toUpperCase().replace(/\s+/g, '');
+    var dir = document.querySelector('input[name="dir"]:checked').value;
+    var s = formState(), raw = s.raw;
+    if (!date) return showErr('Укажите дату сделки.');
+    if (!pair) return showErr('Укажите пару, например EURUSD.');
+    if (raw !== null && isNaN(raw)) return showErr('Профит должен быть числом.');
+    if (raw == null && s.res === 'be') raw = 0;
+    if (raw == null) return showErr('Введите профит или убыток числом.');
+    if (s.rr !== null && (isNaN(s.rr) || s.rr < 0)) return showErr('RR должен быть положительным числом.');
+    showErr('');
+    var t = {id:newId(), date:date, pair:pair, dir:dir, res:s.res, rr:s.rr, profit:signedProfit(s.res, raw), note:$('#note').value.trim(), ts:Date.now()};
+    addTrade(t).then(function(r){
+      toast(r === 'fallback' ? 'Не удалось сохранить в аккаунте. Сделка сохранена в этом браузере.' : 'Сделка записана');
+    });
+    $('#rr').value = ''; $('#profit').value = ''; $('#note').value = '';
+    updateHint();
+  });
+  ['input','change'].forEach(function(e){
+    $('#f').addEventListener(e, function(){ updateHint(); if ($('#err').textContent) showErr(''); });
+  });
+  document.querySelectorAll('input[name="cm"]').forEach(function(r){
+    r.addEventListener('change', function(){ chartMode = r.value; renderChart(view); });
+  });
+  $('#cur').addEventListener('change', function(){
+    cur = $('#cur').value;
+    try { localStorage.setItem(LS_CUR, cur); } catch(e){}
+    updateHint(); render();
+  });
+  $('#rows').addEventListener('click', function(e){
+    var b = e.target.closest('.del');
+    if (!b) return;
+    if (b.dataset.armed) { removeTrade(b.dataset.id); return; }
+    b.dataset.armed = '1'; b.textContent = 'Точно удалить?'; b.classList.add('armed');
+    setTimeout(function(){ if (b.isConnected) { delete b.dataset.armed; b.textContent = 'Удалить'; b.classList.remove('armed'); } }, 3000);
+  });
+  if ('ResizeObserver' in window) {
+    var lastW = 0;
+    new ResizeObserver(function(es){
+      var w = Math.floor(es[0].contentRect.width);
+      if (w !== lastW) { lastW = w; renderChart(view); }
+    }).observe($('#chart'));
+  }
+
+  /* ---------- account storage ---------- */
+  function migrate(){
+    if (!col || !local.length) return;
+    var items = local.slice(), p = Promise.resolve();
+    items.forEach(function(t){
+      p = p.then(function(){
+        return col.doc(t.id).set(t).then(function(){
+          local = local.filter(function(x){ return x.id !== t.id; }); saveLocal();
+        });
+      });
+    });
+    p.then(render, render);
+  }
+  function initCloud(){
+    if (!window.claude || typeof window.claude.use !== 'function') return;
+    Promise.all([window.claude.use('db'), window.claude.use('user')]).then(function(r){
+      var db = r[0], user = r[1];
+      if (!db || !user) return null;
+      return user.id().then(function(id){
+        if (!id) return;
+        col = db.collection('data/users/' + id);
+        mode = 'cloud'; setStatus(); render();
+        col.onSnapshot(function(snap){
+          remote = snap.docs.map(function(d){ return Object.assign({}, d.data(), {id:d.id}); }).filter(valid);
+          cloudReady = true; render();
+        }, function(){
+          mode = 'local'; col = null; remote = []; cloudReady = false; setStatus(); render();
+        });
+        migrate();
+      });
+    }).catch(function(){});
+  }
+
+  /* ---------- start ---------- */
+  $('#cur').value = cur;
+  $('#today').textContent = new Date().toLocaleDateString('ru-RU', {weekday:'long', day:'numeric', month:'long'}).toUpperCase();
+  $('#date').value = ymd(new Date());
+  updateHint();
+  render();
+  initCloud();
+})();
+</script>
+
+</body></html>
